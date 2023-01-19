@@ -42,7 +42,7 @@ def download_repos(username,exclude):
 			os.chdir("/tmp/" + username)
 			for repo in repos:
 				if (not check_fork(repo)) and (not (repo['clone_url'] in exclude)):
-					os.system('git clone --depth 1 ' + repo['clone_url'])
+					os.system('git clone --depth 1 ' + repo['clone_url'] +' 2> /dev/null')
 			os.chdir(cwd)
 	except Exception as e:
 		print(e)
@@ -52,15 +52,32 @@ def download_repos(username,exclude):
 
 # Parse languages in the repos
 def parse_languages(username):
-	languages = os.system('cloc --json /tmp/' + username)
+	languages = os.popen('cloc --json /tmp/' + username)
+	languages = json.loads(languages.read())
+	del languages['header']
+	del languages['SUM']
 	return languages
+
+# Calculate the percentage of each language
+def language_percentage(languages):
+	langsum = sum([ l['code'] for l in languages.values()])
+	percentages = {}
+	for language in languages:
+		percentages[language] = 100*languages[language]['code'] / langsum
+	return percentages
 
 # Main function
 def main():
 	username = 'Mr-Bossman'
-	download_repos(username,[])
+	excluded_languages = ['C']
+	excluded_repos = []
+	download_repos(username,excluded_repos)
 	languages = parse_languages(username)
-	print(languages)
 	os.system("rm -rf /tmp/" + username)
+	for language in excluded_languages:
+		if language in languages:
+			del languages[language]
+	percentages = language_percentage(languages)
+	print(percentages)
 
 main()
