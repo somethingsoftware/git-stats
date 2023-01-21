@@ -23,9 +23,9 @@ def check_usr_valid(username):
 # Get the user's repos
 
 
-def get_repos(username):
+def get_repos(username, max_repos):
     repsonse = requests.get(
-        'https://api.github.com/users/' + username + '/repos?per_page=100')
+        'https://api.github.com/users/' + username + '/repos?per_page='+str(max_repos))
     if (repsonse.status_code == 200):
         return repsonse.json()
     return None
@@ -41,14 +41,14 @@ def check_fork(repo):
 # Download the repos
 
 
-def download_repos(username, exclude):
+def download_repos(username, exclude, max_repos):
     try:
         os.system("rm -rf /tmp/" + username)
     except:
         pass
     try:
         if (check_usr_valid(username) == True):
-            repos = get_repos(username)
+            repos = get_repos(username, max_repos)
             if (repos == None):
                 return False
             cwd = os.getcwd()
@@ -112,13 +112,14 @@ def count_lang_repos(username):
 @click.command()
 @click.option('--username', prompt='github username', 
 	help='The github username for which you want to analyze language use.')
-def main(username):
+@click.option('--max_repos', default=100, help='The max number of repos to analyze. (default: 100)')
+def main(username, max_repos):
     excluded_languages = ['C', 'D', 'Assembly',
                           'Scheme', 'lex', 'Expected', 'C/C++ Header']
     excluded_repos = []
     # start a timer
     start = time.time()
-    download_repos(username, excluded_repos)
+    download_repos(username, excluded_repos, max_repos)
     print("Downloaded repos in " + str(time.time() - start) + " seconds")
     start = time.time()
     lines = parse_lines(username)
@@ -168,15 +169,16 @@ def main(username):
     plt.yscale('log')
     for i in range(df.shape[0]):
         plt.text(
-            x=df.files[i]+0.3,
-            y=df.repos[i]+0.3,
+			# add space using the log function to label the bubbles
+            x=df.files[i]+(df.files[i]*0.1),
+            y=df.repos[i]+(df.repos[i]*0.1),
             s=df.name[i],
             fontdict=dict(
-                color='red',
-                size=10),
+                color='white',
+                size=9),
             bbox=dict(
-                facecolor='yellow',
-                alpha=0.5))
+                facecolor='black',
+                alpha=0.6))
 
     print("Built graph in " + str(time.time() - start) + " seconds")
     print("Total time: " + str(time.time() - total_start) + " seconds")
