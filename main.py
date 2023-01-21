@@ -3,6 +3,10 @@ import requests
 import json
 import os
 import sys
+import click
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 #Check if the user is valid
 def check_usr_valid(username):
@@ -15,7 +19,7 @@ def check_usr_valid(username):
 
 #Get the user's repos
 def get_repos(username):
-	repsonse = requests.get('https://api.github.com/users/' + username + '/repos?per_page=2')
+	repsonse = requests.get('https://api.github.com/users/' + username + '/repos?per_page=100')
 	if(repsonse.status_code == 200):
 		return repsonse.json()
 	return None
@@ -51,7 +55,7 @@ def download_repos(username,exclude):
 	return True
 
 # Parse languages in the repos
-def parse_languages(username):
+def parse_lines(username):
 	languages = os.popen('cloc --json /tmp/' + username)
 	languages = json.loads(languages.read())
 	del languages['header']
@@ -66,18 +70,63 @@ def language_percentage(languages):
 		percentages[language] = 100*languages[language]['code'] / langsum
 	return percentages
 
-# Main function
-def main():
-	username = 'Mr-Bossman'
+# Calculate the number of repos per language
+def count_lang_repos(username):
+	repo_language_counts = dict()
+	for repo in os.listdir('/tmp/'+username+'/'): 
+		if not os.path.isdir('/tmp/'+username+'/'+repo):
+			continue
+		repo_languages = os.popen('cloc /tmp/' + username + '/' + repo + ' --json')
+		repo_languages = json.loads(repo_languages.read())
+		del repo_languages['header']
+		del repo_languages['SUM']
+		cwd = os.getcwd()
+		os.chdir('/tmp/' + username + '/' + repo)
+		os.chdir(cwd)
+		for language in repo_languages:
+			if language not in repo_language_counts:
+				repo_language_counts[language] = 1
+			else:
+				repo_language_counts[language] += 1
+	return repo_language_counts
+
+
+@click.command()
+@click.option('--username', prompt='github username', help='The github username for which you want to analyze language use.')
+def main(username):
 	excluded_languages = ['C']
 	excluded_repos = []
 	download_repos(username,excluded_repos)
-	languages = parse_languages(username)
+	
+	lines = parse_lines(username)
+	percentages = language_percentage(lines)
+	repos_per_language = count_lang_repos(username)
+
 	os.system("rm -rf /tmp/" + username)
-	for language in excluded_languages:
-		if language in languages:
-			del languages[language]
-	percentages = language_percentage(languages)
-	print(percentages)
+
+	languages = dict()
+	for language in percentages:
+		if language in excluded_languages:
+			continue
+		languages[language] = dict()
+		languages[language]['files'] = lines[language]['nFiles']
+		languages[language]['lines'] = lines[language]['code']
+		languages[language]['percentage'] = percentages[language]
+		languages[language]['repos'] = repos_per_language[language]
+		languages[language]['name'] = language
+	print(languages)
+
+	df = pd.DataFrame(languages).transpose()
+	print(df)
+	
+	# use the scatterplot function to build the bubble map
+	sns.scatterplot(data=df, x="files", y="repos", size="lines", legend=False , sizes=(20, 2000))
+	for i in range(df.shape[0]):
+		plt.text(x=df.files[i]+0.3,y=df.repos[i]+0.3,s=df.name[i],fontdict=dict(color='red',size=10),bbox=dict(facecolor='yellow',alpha=0.5))
+
+
+	# show the graph
+	plt.show()
+
 
 main()
