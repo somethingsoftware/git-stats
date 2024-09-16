@@ -2,8 +2,8 @@
 import requests
 import json
 import os
-import sys
 import click
+from typing import Any
 import time
 import pandas as pd
 import seaborn as sns
@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 # Check if the user is valid
 
 
-def check_usr_valid(username):
+def check_usr_valid(username: str) -> bool | None:
     response = requests.get('https://api.github.com/users/' + username)
     if (response.status_code == 200):
         return True
@@ -23,7 +23,7 @@ def check_usr_valid(username):
 # Get the user's repos
 
 
-def get_repos(username, max_repos):
+def get_repos(username: str, max_repos: int) -> list[dict[str, Any]] | None:
     repsonse = requests.get(
         'https://api.github.com/users/' + username + '/repos?per_page='+str(max_repos))
     if (repsonse.status_code == 200):
@@ -33,15 +33,15 @@ def get_repos(username, max_repos):
 # Check if repo is a fork
 
 
-def check_fork(repo):
-    if (repo['fork'] == True):
+def check_fork(repo: dict[str, Any]) -> bool:
+    if (repo.get('fork') == True):
         return True
     return False
 
 # Download the repos
 
 
-def download_repos(username, exclude, max_repos):
+def download_repos(username: str, exclude: list[str], max_repos: int):
     try:
         os.system("rm -rf /tmp/" + username)
     except:
@@ -68,7 +68,7 @@ def download_repos(username, exclude, max_repos):
 # Parse languages in the repos
 
 
-def parse_lines(username):
+def parse_lines(username: str) -> dict[str, Any]:
     languages = os.popen('cloc --json /tmp/' + username)
     languages = json.loads(languages.read())
     del languages['header']
@@ -78,18 +78,18 @@ def parse_lines(username):
 # Calculate the percentage of each language
 
 
-def language_percentage(languages):
+def language_percentage(languages: dict[str, Any]) -> dict[str, float]:
     langsum = sum([l['code'] for l in languages.values()])
-    percentages = {}
+    percentages: dict[str, float] = dict()
     for language in languages:
-        percentages[language] = 100*languages[language]['code'] / langsum
+        percentages[language] = 100 * languages[language]['code'] / langsum
     return percentages
 
 # Calculate the number of repos per language
 
 
-def count_lang_repos(username):
-    repo_language_counts = dict()
+def count_lang_repos(username: str) -> dict[str, int]:
+    repo_language_counts: dict[str, int] = dict()
     for repo in os.listdir('/tmp/'+username+'/'):
         if not os.path.isdir('/tmp/'+username+'/'+repo):
             continue
@@ -113,10 +113,13 @@ def count_lang_repos(username):
 @click.option('--username', prompt='github username', 
 	help='The github username for which you want to analyze language use.')
 @click.option('--max_repos', default=100, help='The max number of repos to analyze. (default: 100)')
-def main(username, max_repos):
-    excluded_languages = ['C', 'D', 'Assembly',
+def main(username: str, max_repos: int):
+    excluded_languages: list[str] = ['C', 'D', 'Assembly',
                           'Scheme', 'lex', 'Expected', 'C/C++ Header']
-    excluded_repos = []
+    excluded_repos: list[str] = []
+
+    # start total timer
+    total_start = time.time()
     # start a timer
     start = time.time()
     download_repos(username, excluded_repos, max_repos)
@@ -135,7 +138,7 @@ def main(username, max_repos):
     os.system("rm -rf /tmp/" + username)
     print("Deleted repos in " + str(time.time() - start) + " seconds")
 
-    languages = dict()
+    languages: dict[str, Any] = dict()
     for language in percentages:
         if language in excluded_languages:
             continue
@@ -149,13 +152,13 @@ def main(username, max_repos):
     # print(languages)
 
     start = time.time()
-    df = pd.DataFrame(languages).transpose()
+    df = pd.DataFrame(languages).transpose() # type: ignore
     print("Built dataframe in " + str(time.time() - start) + " seconds")
     # print(df)
 
     # use the scatterplot function to build the bubble map
     start = time.time()
-    sns.scatterplot(
+    sns.scatterplot( # type: ignore
         data=df,
         x="files",
         y="repos",
@@ -165,14 +168,14 @@ def main(username, max_repos):
     print("Built bubble map in " + str(time.time() - start) + " seconds")
 
     start = time.time()
-    plt.xscale('log')
-    plt.yscale('log')
+    plt.xscale('log') # type: ignore
+    plt.yscale('log') # type: ignore
     for i in range(df.shape[0]):
-        plt.text(
-			# add space using the log function to label the bubbles
-            x=df.files[i]+(df.files[i]*0.1),
-            y=df.repos[i]+(df.repos[i]*0.1),
-            s=df.name[i],
+        plt.text( # type: ignore
+            # add space using the log function to label the bubbles
+            x=df.files[i]+(df.files[i]*0.1),  # type: ignore
+            y=df.repos[i]+(df.repos[i]*0.1),  # type: ignore
+            s=df.name[i],  # type: ignore
             fontdict=dict(
                 color='white',
                 size=9),
@@ -183,8 +186,7 @@ def main(username, max_repos):
     print("Built graph in " + str(time.time() - start) + " seconds")
     print("Total time: " + str(time.time() - total_start) + " seconds")
     # show the graph
-    plt.show()
+    plt.show() # type: ignore
 
-
-total_start = time.time()
-main()
+if __name__ == "__main__":
+	main()
