@@ -5,9 +5,16 @@ import os
 import click
 from typing import Any
 import time
+import tempfile
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+
+def run_in_dir(directory: str, command: str) -> None:
+    cwd = os.getcwd()
+    os.chdir(directory)
+    os.system(command)
+    os.chdir(cwd)
 
 # Check if the user is valid
 def check_usr_valid(username: str) -> bool | None:
@@ -34,32 +41,23 @@ def check_fork(repo: dict[str, Any]) -> bool:
     return False
 
 # Download the repos
-def download_repos(username: str, exclude: list[str], max_repos: int):
-    try:
-        os.system("rm -rf /tmp/" + username)
-    except:
-        pass
+def download_repos(tmp_dir: str, username: str, exclude: list[str], max_repos: int):
     try:
         if (check_usr_valid(username) == True):
             repos = get_repos(username, max_repos)
             if (repos == None):
                 return False
-            cwd = os.getcwd()
-            os.mkdir("/tmp/" + username)
-            os.chdir("/tmp/" + username)
             for repo in repos:
                 if (not check_fork(repo)) and (not (repo['clone_url'] in exclude)):
-                    os.system(f"git clone --depth 1 {repo['clone_url']} 2> /dev/null")
-            os.chdir(cwd)
+                    run_in_dir(tmp_dir, f"git clone --depth 1 {repo['clone_url']} 2> /dev/null")
     except Exception as e:
         print(e)
-        os.system("rm -rf /tmp/" + username)
         return False
     return True
 
 # Parse languages in the repos
-def parse_lines(username: str) -> dict[str, Any]:
-    languages = os.popen(f"cloc --json /tmp/{username}")
+def parse_lines(tmp_dir: str) -> dict[str, Any]:
+    languages = os.popen(f"cloc --json {tmp_dir}")
     languages = json.loads(languages.read())
     del languages['header']
     del languages['SUM']
@@ -74,8 +72,7 @@ def language_percentage(languages: dict[str, Any]) -> dict[str, float]:
     return percentages
 
 # Calculate the number of repos per language
-def count_lang_repos(username: str) -> dict[str, int]:
-    tmp_dir = f"/tmp/{username}"
+def count_lang_repos(tmp_dir: str) -> dict[str, int]:
     repo_language_counts: dict[str, int] = dict()
     for repo in os.listdir(tmp_dir):
         if not os.path.isdir(f"{tmp_dir}/{repo}"):
@@ -85,9 +82,6 @@ def count_lang_repos(username: str) -> dict[str, int]:
         repo_languages = json.loads(repo_languages.read())
         del repo_languages['header']
         del repo_languages['SUM']
-        cwd = os.getcwd()
-        os.chdir(f"{tmp_dir}/{repo}")
-        os.chdir(cwd)
         for language in repo_languages:
             if language not in repo_language_counts:
                 repo_language_counts[language] = 1
@@ -104,25 +98,31 @@ def main(username: str, max_repos: int):
     excluded_languages: list[str] = ['C', 'D', 'Assembly',
                           'Scheme', 'lex', 'Expected', 'C/C++ Header']
     excluded_repos: list[str] = []
+    temp_dir_obj = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+    temp_dir = temp_dir_obj.name
 
     # start total timer
     total_start = time.time()
+
     # start a timer
     start = time.time()
-    download_repos(username, excluded_repos, max_repos)
+    ret = download_repos(temp_dir, username, excluded_repos, max_repos)
+    if not ret:
+        print("Failed to download repos.")
+        return
     print(f"Downloaded repos in {time.time() - start} seconds.")
     start = time.time()
-    lines = parse_lines(username)
+    lines = parse_lines(temp_dir)
     print(f"Parsed lines in {time.time() - start} seconds.")
     start = time.time()
     percentages = language_percentage(lines)
     print(f"Calculated percentages in {time.time() - start} seconds.")
     start = time.time()
-    repos_per_language = count_lang_repos(username)
+    repos_per_language = count_lang_repos(temp_dir)
     print(f"Counted repos in {time.time() - start} seconds.")
 
     start = time.time()
-    os.system("rm -rf /tmp/" + username)
+    temp_dir_obj.cleanup()
     print(f"Deleted repos in {time.time() - start} seconds.")
 
     languages: dict[str, Any] = dict()
