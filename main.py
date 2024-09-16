@@ -4,11 +4,13 @@ import json
 import os
 import click
 from typing import Any, Callable
+from dataclasses import dataclass
 import time
 import tempfile
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import re
 
 def run_in_dir(directory: str, command: str) -> None:
     cwd = os.getcwd()
@@ -46,31 +48,40 @@ def check_fork(repo: dict[str, Any]) -> bool:
         return True
     return False
 
+
+@dataclass
+class DowloadConfig:
+    tmp_dir: str
+    username: str
+    exclude: list[str]
+    max_repos: int
+    exclude_forks: bool
+    do_print: bool
+
 # Download the repos
-def download_repos(tmp_dir: str, username: str, exclude: list[str], max_repos: int,
-                   do_print: bool) -> bool:
+def download_repos(config: DowloadConfig) -> bool:
     try:
-        if (check_usr_valid(username) == False):
-            if do_print:
-                print(f"User {username} not found.")
+        if (check_usr_valid(config.username) == False):
+            if config.do_print:
+                print(f"User {config.username} not found.")
             return False
 
-        repos = get_repos(username, max_repos)
+        repos = get_repos(config.username, config.max_repos)
         if (repos == None):
-            if do_print:
-                print(f"Failed to get repo names for {username}.")
+            if config.do_print:
+                print(f"Failed to get repo names for {config.username}.")
             return False
 
-        if do_print:
+        if config.do_print:
             print(f"Found {len(repos)} repos.")
         for repo in repos:
-            if repo['clone_url'] in exclude:
+            if repo['clone_url'] in config.exclude:
                 continue
-            if check_fork(repo):
+            if check_fork(repo) and config.exclude_forks:
                 continue
-            if do_print:
+            if config.do_print:
                 print(f"Cloning {repo.get('name')}...")
-            run_in_dir(tmp_dir, f"git clone --depth 1 {repo['clone_url']} 2> /dev/null")
+            run_in_dir(config.tmp_dir, f"git clone --depth 1 {repo['clone_url']} 2> /dev/null")
 
     except Exception as e:
         print(e)
@@ -116,19 +127,33 @@ def count_lang_repos(tmp_dir: str) -> dict[str, int]:
 @click.option('--username', prompt='github username',
 	help='The github username for which you want to analyze language use.')
 @click.option('--max_repos', default=100, help='The max number of repos to analyze. (default: 100)')
-def main(username: str, max_repos: int):
-    excluded_languages: list[str] = ['C', 'D', 'Assembly',
-                          'Scheme', 'lex', 'Expected', 'C/C++ Header']
-    excluded_repos: list[str] = []
+@click.option('--excluded_languages', default='Text', help='Languages to exclude from the analysis. (type: list[str], default: "[\'Text\']")')
+@click.option('--excluded_repos', default="", help='Repos to exclude from the analysis. (type: list[str], default: "[]")')
+@click.option('-n', is_flag=True, default=True, help='Disable printing of git cloneing statuses.')
+@click.option('-e', is_flag=True, default=True, help='Exclude forks from the analysis.')
+@click.option('-d', is_flag=True, default=False, help='Don\'t delete temp directory and print it.')
+def main(username: str, max_repos: int, excluded_languages: str, excluded_repos: str,
+         n: bool, e: bool, d: bool) -> None:
+    excluded_langs: list[str] = re.split('[, ]+', excluded_languages)
+    excluded_repos: list[str] = re.split('[, ]+', excluded_repos)
     temp_dir_obj = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
     temp_dir = temp_dir_obj.name
+    if d:
+        print(f"Temp directory: {temp_dir}")
 
     # start total timer
     total_start = time.time()
-
     # start a timer
     start = time.time()
-    ret = download_repos(temp_dir, username, excluded_repos, max_repos, True)
+    config = DowloadConfig(
+        tmp_dir=temp_dir,
+        username=username,
+        exclude=excluded_repos,
+        max_repos=max_repos,
+        exclude_forks=e,
+        do_print=n
+        )
+    ret = download_repos(config)
     if not ret:
         print("Failed to download repos.")
         return
@@ -139,11 +164,12 @@ def main(username: str, max_repos: int):
 
     repos_per_language = timed_function("Counted repos in", count_lang_repos, temp_dir)
 
-    timed_function("Deleted repos in", temp_dir_obj.cleanup)
+    if not d:
+        timed_function("Deleted repos in", temp_dir_obj.cleanup)
 
     languages: dict[str, Any] = dict()
     for language in percentages:
-        if language in excluded_languages:
+        if language in excluded_langs:
             continue
         languages[language] = {
             'files': lines[language]['nFiles'],
@@ -151,6 +177,10 @@ def main(username: str, max_repos: int):
             'percentage': percentages[language],
             'repos': repos_per_language[language],
             'name': language}
+
+    if not languages:
+        print("No languages found.")
+        return
 
     df = pd.DataFrame(languages).transpose() # type: ignore
 
