@@ -150,17 +150,16 @@ def main(username: str, max_repos: int):
     plt.xscale('log') # type: ignore
     plt.yscale('log') # type: ignore
     for i in range(df.shape[0]):
+        frame: pd.Series[Any] = df.iloc[i]
+        bbox = dict(facecolor='black', alpha=0.6)
+        fontdict = dict(color='white', size=9)
         plt.text( # type: ignore
             # add space using the log function to label the bubbles
-            x=df.files[i]+(df.files[i]*0.1),  # type: ignore
-            y=df.repos[i]+(df.repos[i]*0.1),  # type: ignore
-            s=df.name[i],  # type: ignore
-            fontdict=dict(
-                color='white',
-                size=9),
-            bbox=dict(
-                facecolor='black',
-                alpha=0.6))
+            x=frame.files+(frame.files*0.1),
+            y=frame.repos+(frame.repos*0.1),
+            s=str(frame.name),
+            fontdict=fontdict,
+            bbox=bbox)
 
     print(f"Total time: {time.time() - total_start} seconds.")
     # show the graph
