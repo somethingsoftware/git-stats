@@ -47,15 +47,31 @@ def check_fork(repo: dict[str, Any]) -> bool:
     return False
 
 # Download the repos
-def download_repos(tmp_dir: str, username: str, exclude: list[str], max_repos: int):
+def download_repos(tmp_dir: str, username: str, exclude: list[str], max_repos: int,
+                   do_print: bool) -> bool:
     try:
-        if (check_usr_valid(username) == True):
-            repos = get_repos(username, max_repos)
-            if (repos == None):
-                return False
-            for repo in repos:
-                if (not check_fork(repo)) and (not (repo['clone_url'] in exclude)):
-                    run_in_dir(tmp_dir, f"git clone --depth 1 {repo['clone_url']} 2> /dev/null")
+        if (check_usr_valid(username) == False):
+            if do_print:
+                print(f"User {username} not found.")
+            return False
+
+        repos = get_repos(username, max_repos)
+        if (repos == None):
+            if do_print:
+                print(f"Failed to get repo names for {username}.")
+            return False
+
+        if do_print:
+            print(f"Found {len(repos)} repos.")
+        for repo in repos:
+            if repo['clone_url'] in exclude:
+                continue
+            if check_fork(repo):
+                continue
+            if do_print:
+                print(f"Cloning {repo.get('name')}...")
+            run_in_dir(tmp_dir, f"git clone --depth 1 {repo['clone_url']} 2> /dev/null")
+
     except Exception as e:
         print(e)
         return False
@@ -112,7 +128,7 @@ def main(username: str, max_repos: int):
 
     # start a timer
     start = time.time()
-    ret = download_repos(temp_dir, username, excluded_repos, max_repos)
+    ret = download_repos(temp_dir, username, excluded_repos, max_repos, True)
     if not ret:
         print("Failed to download repos.")
         return
