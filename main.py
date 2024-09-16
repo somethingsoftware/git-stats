@@ -3,7 +3,7 @@ import requests
 import json
 import os
 import click
-from typing import Any
+from typing import Any, Callable
 import time
 import tempfile
 import pandas as pd
@@ -15,6 +15,12 @@ def run_in_dir(directory: str, command: str) -> None:
     os.chdir(directory)
     os.system(command)
     os.chdir(cwd)
+
+def timed_function(title: str, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    start = time.time()
+    ret = func(*args, **kwargs)
+    print(f"{title} {time.time() - start} seconds.")
+    return ret
 
 # Check if the user is valid
 def check_usr_valid(username: str) -> bool | None:
@@ -111,19 +117,13 @@ def main(username: str, max_repos: int):
         print("Failed to download repos.")
         return
     print(f"Downloaded repos in {time.time() - start} seconds.")
-    start = time.time()
-    lines = parse_lines(temp_dir)
-    print(f"Parsed lines in {time.time() - start} seconds.")
-    start = time.time()
-    percentages = language_percentage(lines)
-    print(f"Calculated percentages in {time.time() - start} seconds.")
-    start = time.time()
-    repos_per_language = count_lang_repos(temp_dir)
-    print(f"Counted repos in {time.time() - start} seconds.")
 
-    start = time.time()
-    temp_dir_obj.cleanup()
-    print(f"Deleted repos in {time.time() - start} seconds.")
+    lines = timed_function("Parsed lines in", parse_lines, temp_dir)
+    percentages = timed_function("Calculated percentages in", language_percentage, lines)
+
+    repos_per_language = timed_function("Counted repos in", count_lang_repos, temp_dir)
+
+    timed_function("Deleted repos in", temp_dir_obj.cleanup)
 
     languages: dict[str, Any] = dict()
     for language in percentages:
@@ -135,16 +135,10 @@ def main(username: str, max_repos: int):
             'percentage': percentages[language],
             'repos': repos_per_language[language],
             'name': language}
-    print(f"Built data dict in {time.time() - start} seconds.")
-    # print(languages)
 
-    start = time.time()
     df = pd.DataFrame(languages).transpose() # type: ignore
-    print(f"Built dataframe in {time.time() - start} seconds.")
-    # print(df)
 
     # use the scatterplot function to build the bubble map
-    start = time.time()
     sns.scatterplot( # type: ignore
         data=df,
         x="files",
@@ -152,9 +146,7 @@ def main(username: str, max_repos: int):
         size="lines",
         legend=False,
         sizes=(20, 2000))
-    print(f"Built bubble map in {time.time() - start} seconds.")
 
-    start = time.time()
     plt.xscale('log') # type: ignore
     plt.yscale('log') # type: ignore
     for i in range(df.shape[0]):
@@ -170,7 +162,6 @@ def main(username: str, max_repos: int):
                 facecolor='black',
                 alpha=0.6))
 
-    print(f"Built graph in {time.time() - start} seconds.")
     print(f"Total time: {time.time() - total_start} seconds.")
     # show the graph
     plt.show() # type: ignore
