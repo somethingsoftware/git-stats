@@ -12,12 +12,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import re
 
-def run_in_dir(directory: str, command: str) -> None:
-    cwd = os.getcwd()
-    os.chdir(directory)
-    os.system(command)
-    os.chdir(cwd)
-
 def timed_function(title: str, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     start = time.time()
     ret = func(*args, **kwargs)
@@ -81,7 +75,10 @@ def download_repos(config: DowloadConfig) -> bool:
                 continue
             if config.do_print:
                 print(f"Cloning {repo.get('name')}...")
-            run_in_dir(config.tmp_dir, f"git clone --depth 1 {repo['clone_url']} 2> /dev/null")
+            clone_cmd = f"git clone --depth 1 {repo['clone_url']} {config.tmp_dir}/{repo['name']}/ 2> /dev/null"
+            code = os.system(clone_cmd)
+            if code:
+                print(f"got bad exit code: {code}")
 
     except Exception as e:
         print(e)
