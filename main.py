@@ -89,8 +89,8 @@ def download_repos(config: DowloadConfig) -> bool:
     return True
 
 # Parse languages in the repos
-def parse_lines(tmp_dir: str) -> dict[str, Any]:
-    languages = os.popen(f"cloc --json {tmp_dir}")
+def parse_lines(tmp_dir: str, repo: str  = '') -> dict[str, Any]:
+    languages = os.popen(f"cloc --json {tmp_dir}/{repo}")
     languages = json.loads(languages.read())
     del languages['header']
     del languages['SUM']
@@ -110,11 +110,7 @@ def count_lang_repos(tmp_dir: str) -> dict[str, int]:
     for repo in os.listdir(tmp_dir):
         if not os.path.isdir(f"{tmp_dir}/{repo}"):
             continue
-        repo_languages = os.popen(
-            f"cloc {tmp_dir}/{repo} --json")
-        repo_languages = json.loads(repo_languages.read())
-        del repo_languages['header']
-        del repo_languages['SUM']
+        repo_languages = parse_lines(tmp_dir, repo)
         for language in repo_languages:
             if language not in repo_language_counts:
                 repo_language_counts[language] = 1
