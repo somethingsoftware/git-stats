@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import requests
 import json
 import os
 import click
@@ -12,36 +11,13 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import re
 
+from github import github
+
 def timed_function(title: str, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     start = time.time()
     ret = func(*args, **kwargs)
     print(f"{title} {time.time() - start} seconds.")
     return ret
-
-# Check if the user is valid
-def check_usr_valid(username: str) -> bool | None:
-    api_url = f"https://api.github.com/users/{username}"
-    response = requests.get(api_url)
-    if (response.status_code == 200):
-        return True
-    elif (response.status_code == 404):
-        return False
-    return None
-
-# Get the user's repos
-def get_repos(username: str, max_repos: int) -> list[dict[str, Any]] | None:
-    api_url = f"https://api.github.com/users/{username}"
-    repsonse = requests.get(f"{api_url}/repos?per_page={max_repos}")
-    if (repsonse.status_code == 200):
-        return repsonse.json()
-    return None
-
-# Check if repo is a fork
-def check_fork(repo: dict[str, Any]) -> bool:
-    if (repo.get('fork') == True):
-        return True
-    return False
-
 
 @dataclass
 class DowloadConfig:
@@ -55,12 +31,12 @@ class DowloadConfig:
 # Download the repos
 def download_repos(config: DowloadConfig) -> bool:
     try:
-        if (check_usr_valid(config.username) == False):
+        if (github.check_usr_valid(config.username) == False):
             if config.do_print:
                 print(f"User {config.username} not found.")
             return False
 
-        repos = get_repos(config.username, config.max_repos)
+        repos = github.get_repos(config.username, config.max_repos)
         if (repos == None):
             if config.do_print:
                 print(f"Failed to get repo names for {config.username}.")
@@ -71,14 +47,13 @@ def download_repos(config: DowloadConfig) -> bool:
         for repo in repos:
             if repo['clone_url'] in config.exclude:
                 continue
-            if check_fork(repo) and config.exclude_forks:
+            if github.check_fork(repo) and config.exclude_forks:
                 continue
             if config.do_print:
                 print(f"Cloning {repo.get('name')}...")
-            clone_cmd = f"git clone --depth 1 {repo['clone_url']} {config.tmp_dir}/{repo['name']}/ 2> /dev/null"
-            code = os.system(clone_cmd)
+            code = os.system(f"git clone --depth 1 {repo['clone_url']}  {config.tmp_dir}/{repo['name']} 2> /dev/null")
             if code:
-                print(f"got bad exit code: {code}")
+                print(f"failure trying to clone repo '{repo['name']}'")
 
     except Exception as e:
         print(e)
