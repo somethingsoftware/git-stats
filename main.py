@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import json
 import os
 import click
 from typing import Any, Callable
@@ -12,6 +11,7 @@ import matplotlib.pyplot as plt
 import re
 
 from github import github
+from cloc import cloc
 
 def timed_function(title: str, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     start = time.time()
@@ -60,37 +60,6 @@ def download_repos(config: DowloadConfig) -> bool:
         return False
     return True
 
-# Parse languages in the repos
-def parse_lines(tmp_dir: str, repo: str  = '') -> dict[str, Any]:
-    languages = os.popen(f"cloc --json {tmp_dir}/{repo}")
-    languages = json.loads(languages.read())
-    del languages['header']
-    del languages['SUM']
-    return languages
-
-# Calculate the percentage of each language
-def language_percentage(languages: dict[str, Any]) -> dict[str, float]:
-    lang_sum = sum([l['code'] for l in languages.values()])
-    percentages: dict[str, float] = dict()
-    for language in languages:
-        percentages[language] = 100 * languages[language]['code'] / lang_sum
-    return percentages
-
-# Calculate the number of repos per language
-def count_lang_repos(tmp_dir: str) -> dict[str, int]:
-    repo_language_counts: dict[str, int] = dict()
-    for repo in os.listdir(tmp_dir):
-        if not os.path.isdir(f"{tmp_dir}/{repo}"):
-            continue
-        repo_languages = parse_lines(tmp_dir, repo)
-        for language in repo_languages:
-            if language not in repo_language_counts:
-                repo_language_counts[language] = 1
-            else:
-                repo_language_counts[language] += 1
-    return repo_language_counts
-
-
 @click.command()
 @click.option('--username', prompt='github username',
 	help='The github username for which you want to analyze language use.')
@@ -127,10 +96,9 @@ def main(username: str, max_repos: int, excluded_languages: str, excluded_repos:
         return
     print(f"Downloaded repos in {time.time() - start} seconds.")
 
-    lines = timed_function("Parsed lines in", parse_lines, temp_dir)
-    percentages = timed_function("Calculated percentages in", language_percentage, lines)
 
-    repos_per_language = timed_function("Counted repos in", count_lang_repos, temp_dir)
+    langs = timed_function("Counted repos in", cloc.count_lang_repos, temp_dir)
+    percentages = timed_function("Calculated percentages in", cloc.language_percentage, langs)
 
     if not d:
         timed_function("Deleted repos in", temp_dir_obj.cleanup)
@@ -140,10 +108,10 @@ def main(username: str, max_repos: int, excluded_languages: str, excluded_repos:
         if language in excluded_langs:
             continue
         languages[language] = {
-            'files': lines[language]['nFiles'],
-            'lines': lines[language]['code'],
+            'files': langs[language].nFiles,
+            'lines': langs[language].code,
             'percentage': percentages[language],
-            'repos': repos_per_language[language],
+            'repos': langs[language].repos,
             'name': language}
 
     if not languages:
