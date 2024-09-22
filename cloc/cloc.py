@@ -61,7 +61,8 @@ class Repo_Stats(dict[str, Repo_Stat]):
 
 # Parse languages in the repos
 def parse_lines(tmp_dir: str, repo: str  = '') -> Lang_Stats:
-    languages = os.popen(f"cloc --json {tmp_dir}/{repo}")
+    repo_dir = os.path.join(tmp_dir, repo)
+    languages = os.popen(f"cloc --json {repo_dir}")
     languages = json.loads(languages.read())
     del languages['header']
     del languages['SUM']
@@ -80,7 +81,8 @@ def language_percentage(languages: Lang_Stats | Repo_Stats) -> dict[str, float]:
 def count_lang_repos(tmp_dir: str) -> Repo_Stats:
     repo_language_counts: Repo_Stats = Repo_Stats(Lang_Stats({}))
     for repo in os.listdir(tmp_dir):
-        if not os.path.isdir(f"{tmp_dir}/{repo}"):
+        repo_dir = os.path.join(tmp_dir, repo)
+        if not os.path.isdir(repo_dir):
             continue
         repo_language_counts += parse_lines(tmp_dir, repo)
     return repo_language_counts

@@ -51,7 +51,9 @@ def download_repos(config: DowloadConfig) -> bool:
                 continue
             if config.do_print:
                 print(f"Cloning {repo.get('name')}...")
-            code = os.system(f"git clone --depth 1 {repo['clone_url']}  {config.tmp_dir}/{repo['name']} 2> /dev/null")
+
+            clone_dir = os.path.join(config.tmp_dir, repo['name'])
+            code = os.system(f"git clone --depth 1 {repo['clone_url']}  {clone_dir} 2> /dev/null")
             if code:
                 print(f"failure trying to clone repo '{repo['name']}'")
 
