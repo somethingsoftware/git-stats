@@ -64,15 +64,15 @@ def download_repos(config: DowloadConfig) -> bool:
 @click.option('--username', prompt='github username',
 	help='The github username for which you want to analyze language use.')
 @click.option('--max_repos', default=100, help='The max number of repos to analyze. (default: 100)')
-@click.option('--excluded_languages', default='Text', help='Languages to exclude from the analysis. (type: list[str], default: "[\'Text\']")')
+@click.option('--excluded_langs', default='Text', help='Languages to exclude from the analysis. (type: list[str], default: "[\'Text\']")')
 @click.option('--excluded_repos', default="", help='Repos to exclude from the analysis. (type: list[str], default: "[]")')
 @click.option('-n', is_flag=True, default=True, help='Disable printing of git cloneing statuses.')
 @click.option('-e', is_flag=True, default=True, help='Exclude forks from the analysis.')
 @click.option('-d', is_flag=True, default=False, help='Don\'t delete temp directory and print it.')
-def main(username: str, max_repos: int, excluded_languages: str, excluded_repos: str,
+def main(username: str, max_repos: int, excluded_langs: str, excluded_repos: str,
          n: bool, e: bool, d: bool) -> None:
-    excluded_langs: list[str] = re.split('[, ]+', excluded_languages)
-    excluded_repos: list[str] = re.split('[, ]+', excluded_repos)
+    excluded_languages: list[str] = re.split('[, ]+', excluded_langs)
+    excluded_repositories: list[str] = re.split('[, ]+', excluded_repos)
     temp_dir_obj = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
     temp_dir = temp_dir_obj.name
     if d:
@@ -85,7 +85,7 @@ def main(username: str, max_repos: int, excluded_languages: str, excluded_repos:
     config = DowloadConfig(
         tmp_dir=temp_dir,
         username=username,
-        exclude=excluded_repos,
+        exclude=excluded_repositories,
         max_repos=max_repos,
         exclude_forks=e,
         do_print=n
@@ -105,7 +105,7 @@ def main(username: str, max_repos: int, excluded_languages: str, excluded_repos:
 
     languages: dict[str, Any] = dict()
     for language in percentages:
-        if language in excluded_langs:
+        if language in excluded_languages:
             continue
         languages[language] = {
             'files': langs[language].nFiles,
